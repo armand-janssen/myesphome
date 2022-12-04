@@ -1,0 +1,19 @@
+type: vertical-stack
+cards:
+  - type: entities
+    entities:
+      - binary_sensor.pulse_sensor_water
+      - sensor.watermeter_totaal
+      - sensor.watermeter_pulse
+      - sensor.watermeter_pulses_totaal
+      - sensor.watermeter_stand
+      - sensor.watermeter_meterkast_versie
+    title: watermeter-meterkast
+  - type: custom:auto-entities
+    card:
+      show_header_toggle: false
+      title: Waterverbruik
+      type: entities
+    filter:
+      include:
+        - entity_id: sensor.waterverbruik_per*

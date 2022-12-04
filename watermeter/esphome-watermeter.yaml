@@ -1,0 +1,187 @@
+# Delen en bewerken mag maar laat deze eerste regels staan.
+# Bron : https://www.huizebruin.nl
+# Bron File : https://github.com/huizebruin/s0tool/tree/main/esphome
+# © Huizebruin.nl
+# https://www.huizebruin.nl/home-assistant/esphome/watermeter-uitlezen-in-home-assistant-met-esphome/
+substitutions:
+  name: watermeter-meterkast
+  vdate: "v22.11.23"
+  device_description: watermeter versie ${vdate} .
+
+esphome:
+  name: ${name}
+
+esp8266:
+  board: d1_mini_pro
+
+ota:
+  password: !secret watermeter_ota_password
+  safe_mode: true
+  reboot_timeout: 10min
+  num_attempts: 5
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+  manual_ip:
+    static_ip: !secret watermeter_ip
+    gateway: !secret gateway
+    subnet: 255.255.255.0
+
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "watermeter-meterkast"
+    password: !secret watermeter_ap_fallback_password
+
+captive_portal:
+
+web_server:
+  port: 80
+
+# ⬇ Enable logging ⬇ #
+logger:
+  level: INFO
+  esp8266_store_log_strings_in_flash: false
+
+#  # ⬇ Enable Home Assistant API ⬇ #
+api:
+  encryption:
+    key: !secret watermeter_encryption_key
+  services:
+    - service: meterstand_water
+      variables:
+        meter_value: float
+      then:
+        - globals.set:
+            id: initial_water_usage
+            value: !lambda "return ( meter_value ) ;"
+
+globals:
+  - id: initial_water_usage
+    type: float
+    restore_value: yes
+    initial_value: "1634.064"
+  - id: total_water_pulses
+    type: int
+    restore_value: yes
+
+binary_sensor:
+  #------------------------# Watermeter #------------------------#
+  - platform: gpio
+    id: internal_pulse_counter
+    name: Pulse Sensor Water
+    pin:
+      number: D2
+      inverted: true
+      mode:
+        input: true
+    on_press:
+      - then:
+          lambda: id(total_water_pulses) += 1;
+
+    # diagnostic button #
+  - platform: status
+    name: "${name} Status"
+    entity_category: diagnostic
+
+sensor:
+  #------------------------# Watermeter #------------------------#
+  # ⬇ watermeter pulsen ⬇ #
+  - platform: pulse_counter
+    pin: D2
+    id: watermeter_pulse
+    name: "watermeter pulse"
+    state_class: measurement
+    unit_of_measurement: "l/min"
+    accuracy_decimals: 1
+    icon: "mdi:water-pump"
+
+    # ⬇ Totaal watermeter ⬇ #
+    total:
+      id: sensor_pulse_meter_total
+      name: "watermeter Totaal"
+      unit_of_measurement: "m³"
+      state_class: total_increasing
+      device_class: water
+      accuracy_decimals: 3
+      filters:
+        - multiply: 0.001
+
+  # ⬇ Watermeter stand bij benadering ⬇ #
+  - platform: template
+    id: watermeter_total
+    name: "watermeter stand"
+    state_class: "total_increasing"
+    icon: mdi:water
+    unit_of_measurement: "m³"
+    accuracy_decimals: 3
+    lambda: return id(initial_water_usage) + (id(total_water_pulses) * 0.001);
+  #    lambda:
+  #      return id(sensor_pulse_meter_total).state + id(totalWaterUsage);
+
+  # ⬇ Waterpulses ⬇ #
+  - platform: template
+    id: watermeter_pulses
+    name: "watermeter pulses totaal"
+    state_class: "total_increasing"
+    lambda: return id(total_water_pulses);
+
+  #------------------------#  sensoren #------------------------#
+  - platform: uptime
+    id: S0tool_uptime
+
+  # - platform: template
+  #   id: S0tool_uptime_timestamp
+  #   name: "${name} online sinds"
+  #   device_class: "timestamp"
+  #   accuracy_decimals: 0
+  #   update_interval: never
+  #   icon: 'mdi:clock-start'
+  #   lambda: |-
+  #     static float timestamp = (
+  #       id(time_homeassistant).utcnow().timestamp - id(S0tool_uptime).state
+  #     );
+  #     return timestamp;
+
+  # ⬇ versie verbinding informatie sensoren voor in ha ⬇ #
+  # WiFi signal
+  - platform: wifi_signal
+    name: "${name} - WiFi Signal"
+    update_interval: 120s
+
+text_sensor:
+  - platform: template
+    name: "${name}_versie"
+    id: s0tool_versie
+    icon: "mdi:alpha-v-circle-outline"
+    update_interval: 6h
+    lambda: |-
+      return {"${vdate}"};
+  - platform: wifi_info
+    ip_address:
+      name: "${name} IP-adres"
+      id: s0tool_ip_adres
+      icon: mdi:ip-network
+    ssid:
+      name: "${name} Netwerk"
+      id: s0tool_netwerk
+      icon: mdi:access-point-network
+    mac_address:
+      name: "${name} Mac-adres"
+      id: s0tool_mac_adres
+      icon: mdi:folder-key-network-outline
+
+#  restart button  #
+button:
+  - platform: restart
+    name: "${name} Restart device"
+
+switch:
+  # safe mode switch
+  - platform: safe_mode
+    name: "${name} Safe Mode"
+
+  # Factory Reset Switch from ESPHome v2022.09
+  - platform: factory_reset
+    name: Restart with Factory Default Settings

@@ -1,4 +1,6 @@
 # EspHome Watermeter
+This watermeter is based on https://www.huizebruin.nl/home-assistant/esphome/watermeter-uitlezen-in-home-assistant-met-esphome/, but without the s0tool integration.
+
 1. Get arduino with wifi (Wemos D1 Mini Pro).
 2. Install EspHome somewhere.
 3. Add the `esphome-secrets.yaml` to the EspHome secrets with correct values.
